@@ -27,7 +27,7 @@ jobs:
           REDIS_PORT=6379
           SECRET_KEY=ci-test-secret-key
           DEBUG=True
-          ALLOWED_HOSTS=localhost,127.0.0.1,backend
+          ALLOWED_HOSTS=localhost,127.0.0.1,backend,testserver
           BACKEND_PORT=8000
           EMAIL_HOST=smtp4dev
           EMAIL_PORT=25
@@ -80,11 +80,24 @@ jobs:
           docker compose logs db
           exit 1
 
+      - name: Run Django migrations
+        run: docker compose exec -T backend python manage.py migrate --noinput
+
       - name: Collect tests
         run: docker compose exec -T backend pytest --collect-only -q
 
       - name: Run tests
-        run: docker compose exec -T backend pytest -v --tb=short
+        shell: bash
+        run: |
+          docker compose exec -T backend pytest -v --tb=long --color=no 2>&1 | tee pytest.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload pytest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: pytest.log
 
       - name: Show logs on failure
         if: failure()
