@@ -66,12 +66,13 @@ services:
 
 
 # =================================
-# SMTP4DEV
+# SMTP4DEV  (heavy — فقط با profile)
 # =================================
   smtp4dev:
     image: rnwood/smtp4dev:v3
     container_name: smtp4dev
     restart: always
+    profiles: ["heavy"]
 
     ports:
       - "${SMTP4DEV_WEB_PORT}:80"
@@ -160,11 +161,12 @@ services:
 
 
 # =================================
-# ELK STACK (KIBANA)
+# ELK STACK (KIBANA)  — heavy
 # =================================
   kibana:
     image: mirror2.chabokan.net/elastic/kibana:8.17.0
     container_name: kibana
+    profiles: ["heavy"]
 
     depends_on:
       - elasticsearch
@@ -181,11 +183,12 @@ services:
 
 
 # =================================
-# ELK STACK (LOG STASH)
+# ELK STACK (LOGSTASH)  — heavy
 # =================================
   logstash:
     image: mirror2.chabokan.net/logstash:8.17.0
     container_name: logstash
+    profiles: ["heavy"]
 
     depends_on:
       - elasticsearch
@@ -207,11 +210,11 @@ services:
 
 
 # ======================================
-# Load Testing
+# Load Testing  — heavy
 # ======================================
-
   master:
     image: locustio/locust
+    profiles: ["heavy"]
 
     ports:
       - "${LOCUST_PORT}:8009"
@@ -224,6 +227,7 @@ services:
 
   locust_worker:
     image: locustio/locust
+    profiles: ["heavy"]
 
     volumes:
       - ./Multi_Shop/locust:/mnt/locust

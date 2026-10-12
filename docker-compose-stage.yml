@@ -53,7 +53,28 @@ services:
       - backend
     mem_limit: 256m
 
+
+# =================================
+# ELASTICSEARCH
+# =================================
+  elasticsearch:
+    image: mirror2.chabokan.net/elasticsearch:8.17.0
+    container_name: elasticsearch
+
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
+    restart: unless-stopped
+
+    mem_limit: ${ELASTICSEARCH_MEMORY}
+
 volumes:
   postgres_data:
   static_volume:
   media_volume:
+  elasticsearch_data:
