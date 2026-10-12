@@ -1,20 +1,29 @@
+
 name: Docker Image CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: SetUp Docker Compose
-      run: docker-compose up -d
-    - name: Run test
-      run: docker exec backend sh -c "pytest ."
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start services
+        run: docker compose up -d --build
+
+      - name: Check running containers
+        run: docker compose ps
+
+      - name: Run tests
+        run: docker compose exec -T backend pytest -q --tb=short
+
+      - name: Show logs on failure
+        if: failure()
+        run: docker compose logs --no-color
