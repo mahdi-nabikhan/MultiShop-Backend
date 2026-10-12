@@ -1,168 +1,59 @@
 
-
 services:
-# =================================
-# POSTGESQL
-# =================================
   db:
     image: postgres:17
-    container_name: postgres-db
-    restart: always
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: multi_shop_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    mem_limit: 200MB
-# =================================
-# REDIS
-# =================================    
+    mem_limit: 200m
+
   redis:
-    container_name: redis
     image: redis:7
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
     command: redis-server --save 60 1 --loglevel warning
-    mem_limit: 100MB
-# =================================
-# BACKEND
-# =================================
+    mem_limit: 100m
+
   backend:
-    build: 
-      context : .
-      dockerfile:  docker/Dockerfile.backend
-    container_name: backend
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
     command: >
       sh -c "
-      python manage.py makemigrations &&
       python manage.py migrate &&
       python manage.py collectstatic --noinput &&
       gunicorn Multi_Shop.wsgi --bind 0.0.0.0:8000
       "
     volumes:
-      - ./src/backend:/app
       - static_volume:/app/staticfiles
       - media_volume:/app/media
     ports:
       - "8000:8000"
     environment:
-      - SECRET_KEY=test
-      - DEBUG=false
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      # سایر متغیرهای ضروری Django را نیز اینجا اضافه می‌کنیم.
     depends_on:
+      - db
       - redis
-    mem_limit: 300MB
+    mem_limit: 300m
 
-# =================================
-# Celery Workers
-# =================================
   worker:
     build:
-      context : . 
-      dockerfile:  docker/Dockerfile.backend
+      context: .
+      dockerfile: docker/Dockerfile.backend
+    restart: unless-stopped
     command: celery -A Multi_Shop worker --loglevel=info
     depends_on:
       - redis
       - backend
-    volumes:
-      - ./src/backend:/app
-    mem_limit: 256MB
-# =================================
-# n8n
-# =================================
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: n8n
-    ports:
-      - "8900:4388"
-    environment:
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=admin123
-      - N8N_USER_MANAGEMENT_DISABLED=true
-      - N8N_HOST=0.0.0.0
-      - N8N_PORT=4388
-    volumes:
-      - ./n8n_data:/home/node/.n8n
-    depends_on:
-      - redis
-      - backend
-    mem_limit: 255MB
-  elasticsearch:
-    image: mirror2.chabokan.net/elasticsearch:8.17.0
-    container_name: elasticsearch
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-      - ES_JAVA_OPTS=-Xms512m -Xmx512m
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    restart: unless-stopped
-    mem_limit: 700MB
-# =================================
-# ELK STACK (KIBANA)
-# =================================
-  kibana:
-    image: mirror2.chabokan.net/elastic/kibana:8.17.0
-    container_name: kibana
-    depends_on:
-      - elasticsearch
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    restart: unless-stopped
-    mem_limit: 350MB
-# =================================
-# ELK STACK (LOG STASH)
-# =================================
-  logstash:
-    image: mirror2.chabokan.net/logstash:8.17.0
-    container_name: logstash
-    depends_on:
-      - elasticsearch
-    ports:
-      - "5044:5044"
-      - "5001:5001"
-      - "9600:9600"
-    volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline
-    environment:
-      - LS_JAVA_OPTS=-Xms256m -Xmx256m
-    restart: unless-stopped
-    mem_limit: 284MB
-      
-# ======================================
-# Load Testing
-# ======================================
-
-  master:
-    image: locustio/locust
-    ports:
-      - "8009:8009"
-    volumes:
-      - ./Multi_Shop/locust:/mnt/locust
-    command : -f /mnt/locust/locustfile.py --master -H http://backend:8000
-  locust_worker : 
-    image: locustio/locust
-    ports:
-      - "8009:8009"
-    volumes:
-      - ./Multi_Shop/locust:/mnt/locust
-    command : -f /mnt/locust/locustfile.py --worker --master-host master
-
-
+    mem_limit: 256m
 
 volumes:
-  smtp4dev-data:
-  esdata:
   postgres_data:
-  elasticsearch_data:
   static_volume:
   media_volume:
-  
