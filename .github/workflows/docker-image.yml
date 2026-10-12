@@ -1,59 +1,92 @@
-
-name: Docker Image CI
+name: MultiShop CI
 
 on:
-  push:
-    branches: ["main"]
-  pull_request:
-    branches: ["main"]
+push:
+branches: ["main"]
+pull_request:
+branches: ["main"]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+test:
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+```
+steps:
+  - name: Checkout repository
+    uses: actions/checkout@v4
 
-      - name: Create CI environment file
-        run: |
-          cat > .env <<'EOF'
-          POSTGRES_DB=multi_shop_db
-          POSTGRES_USER=postgres
-          POSTGRES_PASSWORD=postgres
-          POSTGRES_HOST=db
-          POSTGRES_PORT=5432
-          REDIS_HOST=redis
-          REDIS_PORT=6379
-          SECRET_KEY=ci-test-secret-key
-          DEBUG=True
-          ALLOWED_HOSTS=localhost,127.0.0.1,backend
-          BACKEND_PORT=8000
-          SMTP4DEV_WEB_PORT=5001
-          SMTP4DEV_SMTP_PORT=25
-          SMTP4DEV_IMAP_PORT=143
-          N8N_PORT=8900
-          N8N_BASIC_AUTH_USER=admin
-          N8N_BASIC_AUTH_PASSWORD=ci-test-password
-          ELASTICSEARCH_MEMORY=700MB
-          KIBANA_PORT=5601
-          LOGSTASH_BEATS_PORT=5044
-          LOGSTASH_TCP_PORT=5001
-          LOGSTASH_MONITORING_PORT=9600
-          LOCUST_PORT=8009
-          CELERY_TIMEZONE=Asia/Tehran
-          CORS_ALLOWED_ORIGINS=http://localhost:3000
-          EOF
+  - name: Create CI environment file
+    run: |
+      cat > .env <<'EOF'
+      POSTGRES_DB=multi_shop_db
+      POSTGRES_USER=postgres
+      POSTGRES_PASSWORD=postgres
+      POSTGRES_HOST=db
+      POSTGRES_PORT=5432
+      REDIS_HOST=redis
+      REDIS_PORT=6379
+      SECRET_KEY=ci-test-secret-key
+      DEBUG=True
+      ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      BACKEND_PORT=8000
+      EMAIL_HOST=smtp4dev
+      EMAIL_PORT=25
+      EMAIL_USE_TLS=False
+      EMAIL_HOST_USER=
+      EMAIL_HOST_PASSWORD=
+      DEFAULT_FROM_EMAIL=no-reply@example.com
+      SMTP4DEV_WEB_PORT=5001
+      SMTP4DEV_SMTP_PORT=25
+      SMTP4DEV_IMAP_PORT=143
+      CELERY_TIMEZONE=Asia/Tehran
+      CORS_ALLOWED_ORIGINS=http://localhost:3000
+      N8N_PORT=8900
+      N8N_BASIC_AUTH_USER=admin
+      N8N_BASIC_AUTH_PASSWORD=ci-test-password
+      ELASTICSEARCH_HOST=elasticsearch
+      ELASTICSEARCH_PORT=9200
+      ELASTICSEARCH_MEMORY=700MB
+      KIBANA_PORT=5601
+      LOGSTASH_BEATS_PORT=5044
+      LOGSTASH_TCP_PORT=5001
+      LOGSTASH_MONITORING_PORT=9600
+      LOCUST_PORT=8009
+      EOF
 
-      - name: Start services
-        run: docker compose up -d --build db redis backend
+  - name: Validate Docker Compose configuration
+    run: docker compose config --quiet
 
-      - name: Check containers
-        run: docker compose ps
+  - name: Build and start required services
+    run: docker compose up -d --build db redis backend
 
-      - name: Run tests
-        run: docker compose exec -T backend pytest -q --tb=short
+  - name: Show running containers
+    run: docker compose ps
 
-      - name: Show logs on failure
-        if: failure()
-        run: docker compose logs --no-color
+  - name: Wait for PostgreSQL
+    run: |
+      for i in $(seq 1 30); do
+        if docker compose exec -T db pg_isready -U postgres -d multi_shop_db; then
+          exit 0
+        fi
+        sleep 2
+      done
+      echo "PostgreSQL did not become ready in time"
+      docker compose logs db
+      exit 1
+
+  - name: Collect tests
+    run: docker compose exec -T backend pytest --collect-only -q
+
+  - name: Run tests
+    run: docker compose exec -T backend pytest -v --tb=short
+
+  - name: Show logs on failure
+    if: failure()
+    run: |
+      docker compose ps
+      docker compose logs --no-color db redis backend
+
+  - name: Stop services
+    if: always()
+    run: docker compose down
+```
