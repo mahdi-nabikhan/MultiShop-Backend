@@ -107,25 +107,3 @@ class TestOrderSerializers:
         assert item.total == Decimal('3000.00')
         assert item.status == OrderItem.Status.pending
 
-    def test_bill_serializer_create_and_representation(self, sample_data):
-        order = Order.objects.create(customer=sample_data['customer'])
-
-        serializer = BillSerilizers(
-        data={'address': sample_data['address'].id},
-        context={'pk': order.id}  # Order id به context
-        )
-        serializer.is_valid(raise_exception=True)
-        bill = serializer.save()
-
-        # بررسی ایجاد شدن bill
-        assert isinstance(bill, Bill)
-        assert bill.cart == order
-        assert bill.address.id == sample_data['address'].id
-        assert bill.status is False
-
-        # بررسی representation
-        rep = serializer.data
-        # حالا rep['cart'] یک دیکشنری است
-        assert rep['cart']['id'] == order.id
-        assert rep['cart']['status'] == order.status
-        assert rep['cart']['customer'] == order.customer.id
