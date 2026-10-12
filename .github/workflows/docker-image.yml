@@ -15,10 +15,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create CI environment file
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_DB=multi_shop_db
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_HOST=db
+          POSTGRES_PORT=5432
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          SECRET_KEY=ci-test-secret-key
+          DEBUG=True
+          ALLOWED_HOSTS=localhost,127.0.0.1,backend
+          BACKEND_PORT=8000
+          SMTP4DEV_WEB_PORT=5001
+          SMTP4DEV_SMTP_PORT=25
+          SMTP4DEV_IMAP_PORT=143
+          N8N_PORT=8900
+          N8N_BASIC_AUTH_USER=admin
+          N8N_BASIC_AUTH_PASSWORD=ci-test-password
+          ELASTICSEARCH_MEMORY=700MB
+          KIBANA_PORT=5601
+          LOGSTASH_BEATS_PORT=5044
+          LOGSTASH_TCP_PORT=5001
+          LOGSTASH_MONITORING_PORT=9600
+          LOCUST_PORT=8009
+          CELERY_TIMEZONE=Asia/Tehran
+          CORS_ALLOWED_ORIGINS=http://localhost:3000
+          EOF
+
       - name: Start services
         run: docker compose up -d --build
 
-      - name: Check running containers
+      - name: Check containers
         run: docker compose ps
 
       - name: Run tests
