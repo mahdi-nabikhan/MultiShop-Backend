@@ -46,7 +46,7 @@ jobs:
           EOF
 
       - name: Start services
-        run: docker compose up -d --build
+        run: docker compose up -d --build db redis backend
 
       - name: Check containers
         run: docker compose ps
