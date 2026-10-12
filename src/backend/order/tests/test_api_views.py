@@ -1,201 +1,279 @@
+﻿
+from decimal import Decimal
 import pytest
 from django.urls import reverse
 from rest_framework.test import APIClient
-from decimal import Decimal
-from django.contrib.auth import get_user_model
-from order.models import Order, OrderItem
+from django.urls import reverse
+from order.models import Order, OrderItem, Bill
+from order.services import CartService
 from vendor.models import Manager, Store
 from website.models import Product, Category
 from customer.models import Customer, Address
 
-User = get_user_model()
 
-# Fixture آماده سازی داده‌ها
+@pytest.fixture
+def api_client():
+    return APIClient()
+
+
 @pytest.fixture
 def setup_data(db):
-    """
-    Fixture to set up initial test data for orders, customers, products, and stores.
+    from django.contrib.auth import get_user_model
 
-    Returns a dictionary containing:
-    --------------------------------
-    - 'user': User instance representing a test customer
-    - 'manager_user': User instance representing a test store manager
-    - 'customer': Customer instance linked to 'user'
-    - 'manager': Manager instance linked to 'manager_user'
-    - 'store': Store instance managed by 'manager'
-    - 'category': Product Category instance
-    - 'product': Product instance associated with 'store' and 'category'
-    - 'address': Address instance linked to 'customer'
+    User = get_user_model()
 
-    Purpose:
-    --------
-    - Provides a consistent set of related objects for testing Order, OrderItem, and Bill API endpoints.
-    - Ensures there is at least one customer, one manager/store, one product, and one address available.
-    - Can be used in pytest test functions by passing `setup_data` as a parameter.
-
-    Example usage in a test:
-    ------------------------
-        def test_customer_order_creation(client, setup_data):
-            user = setup_data['user']
-            client.force_authenticate(user=user)
-            product = setup_data['product']
-            response = client.post(f'/api/v1/order/item/{product.id}/', {"quantity": 2})
-            assert response.status_code == 201
-    """
-    # Users
-    user = User.objects.create_user(email='test@gmail.com', password='pass12345')
-    manager_user = User.objects.create_user(email='manager@gmail.com', password='pass12345')
-
-    # Manager and store
-    manager = Manager.objects.create(user=manager_user, first_name='A', last_name='B')
-    store = Store.objects.create(manager=manager, name='Tech Store', description='Tech Gadgets')
-
-    # Customer
-    customer = Customer.objects.create(user=user, username='mahdi')
-
-    # Category and product
-    category = Category.objects.create(title='Electronics', image='cat.png', description='Electronics category')
-    product = Product.objects.create(
-        name='Laptop',
-        description='Powerful laptop',
-        price=Decimal('1500.00'),
-        quantity_in_stock=5,
-        store=store,
-        category=category
+    user = User.objects.create_user(
+        email="test@gmail.com",
+        password="testpassword123",
     )
 
-    # Address
-    address = Address.objects.create(customer=customer, street='Main St', city='Tehran', state='Tehran', postal_code='12345')
+    manager_user = User.objects.create_user(
+        email="manager@gmail.com",
+        password="managerpassword123",
+    )
+
+    customer = Customer.objects.create(
+        user=user,
+        username="mahdi",
+    )
+
+    manager = Manager.objects.create(
+        user=manager_user,
+    )
+
+    category = Category.objects.create(
+        title="Electronics",
+        image="cat.png",
+        description="Electronics category",
+    )
+
+    store = Store.objects.create(
+        manager=manager,
+        name="Test Store",
+    )
+
+    product = Product.objects.create(
+        name="Laptop",
+        description="Powerful laptop",
+        price=Decimal("1500.00"),
+        quantity_in_stock=5,
+        store=store,
+        category=category,
+    )
+
+    address = Address.objects.create(
+        customer=customer,
+        street="Main St",
+        city="Tehran",
+        state="Tehran",
+        postal_code="12345",
+    )
 
     return {
-        'user': user,
-        'manager_user': manager_user,
-        'customer': customer,
-        'manager': manager,
-        'store': store,
-        'category': category,
-        'product': product,
-        'address': address
+        "user": user,
+        "manager_user": manager_user,
+        "customer": customer,
+        "manager": manager,
+        "store": store,
+        "category": category,
+        "product": product,
+        "address": address,
     }
+
 
 @pytest.mark.django_db
 class TestOrderViews:
-    """
-    Test suite for Order, OrderItem, and Bill API endpoints.
 
-    These tests cover the following scenarios:
+    def test_order_list_create(self, api_client, setup_data):
+        user = setup_data["user"]
+        customer = setup_data["customer"]
 
-    1. OrderListApiView (order-list)
-       - GET: List all orders for the authenticated customer.
-       - POST: Create a new order for the authenticated customer.
+        api_client.force_authenticate(user=user)
 
-    2. OrderItemCreateApiView / OrderItemApiView / OrderItemListAPIView (order-item-create, customer_order_item, order-item-list)
-       - POST: Add a product to an order (OrderItemCreateApiView).
-       - GET: List all active order items for the authenticated customer (OrderItemApiView).
-       - GET: List all items for a specific order (OrderItemListAPIView).
+        url = "/order/api/v1/orders/"
+        response = api_client.post(
+            url,
+            {"customer": customer.id},
+            format="json",
+        )
 
-    3. OrderItemDetailView (order_item_detail)
-       - GET: Retrieve a single order item.
-       - PUT/PATCH: Update quantity or details of an order item.
-       - DELETE: Remove an order item from the order.
+        assert response.status_code == 201, response.data
+        assert Order.objects.filter(customer=customer).exists()
 
-    4. ShopOrderListApiView (shop_order_item)
-       - GET: List all order items related to products managed by the authenticated store manager.
+    def test_order_item_create_list(self, api_client, setup_data):
+        user = setup_data["user"]
+        customer = setup_data["customer"]
+        product = setup_data["product"]
 
-    5. BillCreationApiView (bill-creation)
-       - POST: Create a bill for a specific order.
+        CartService.clear_cart(customer_id=customer.id)
 
-    Notes
-    -----
-    - All endpoints require authentication.
-    - Fixtures (setup_data) provide pre-created users, customers, managers, store, products, and addresses.
-    - The tests simulate realistic API interactions:
-        - Customer creates orders and order items.
-        - Customer retrieves order item lists and details.
-        - Store manager views order items for managed products.
-        - Customers can create bills for completed orders.
-    """
+        try:
+            api_client.force_authenticate(user=user)
 
-    def test_order_list_create(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
+            # This endpoint adds the product to the Redis cart.
+            # It does not create an OrderItem database record.
+            url = f"/order/api/v1/order/item/{product.id}/"
 
-        url = reverse('order:order_api_vi:order-list')
+            response = api_client.post(
+                url,
+                {"quantity": 2},
+                format="json",
+            )
 
-        # POST -> create order
-        response = client.post(url, {'customer': setup_data['customer'].id})
-        assert response.status_code == 201
-        assert Order.objects.filter(customer=setup_data['customer']).exists()
+            assert response.status_code == 200, response.data
 
-    def test_order_item_create_list(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
+            cart = CartService.get_cart(customer_id=customer.id)
+            assert cart.get(product.id) == 2
 
-        order = Order.objects.create(customer=setup_data['customer'])
-        product = setup_data['product']
+            # Check the customer's order-item list endpoint.
+            list_url = "/order/api/v1/order/item/"
+            list_response = api_client.get(list_url)
 
-        url_create = reverse('order:order_api_vi:order-item-create', args=[product.id])
-        response = client.post(url_create, {'order': order.id, 'quantity': 2})
-        assert response.status_code == 201
-        assert OrderItem.objects.filter(order=order, product=product).exists()
+            assert list_response.status_code == 200, list_response.data
 
-        # GET list
-        url_list = reverse('order:order_api_vi:customer_order_item')
-        response = client.get(url_list)
-        assert response.status_code == 200
+        finally:
+            CartService.clear_cart(customer_id=customer.id)
 
-    def test_order_item_detail_update_delete(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
+    def test_order_item_detail_update_delete(
+        self,
+        api_client,
+        setup_data,
+    ):
+        user = setup_data["user"]
+        customer = setup_data["customer"]
+        product = setup_data["product"]
 
-        order = Order.objects.create(customer=setup_data['customer'])
-        item = OrderItem.objects.create(order=order, product=setup_data['product'], quantity=1)
+        order = Order.objects.create(
+            customer=customer,
+            status=False,
+        )
 
-        url_detail = reverse('order:order_api_vi:order_item_detail', args=[item.id])
+        order_item = OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=2,
+        )
 
-        # GET detail
-        response = client.get(url_detail)
-        assert response.status_code == 200
+        api_client.force_authenticate(user=user)
 
-        # PUT update
-        response = client.put(url_detail, {'order': order.id, 'product': item.product.id, 'quantity': 5})
-        assert response.status_code == 200
-        item.refresh_from_db()
-        assert item.quantity == 5
+        url = f"/order/api/v1/order/item/detail/{order_item.id}/"
 
-        # DELETE
-        response = client.delete(url_detail)
-        assert response.status_code == 204
-        assert not OrderItem.objects.filter(id=item.id).exists()
+        # Retrieve
+        response = api_client.get(url)
+        assert response.status_code == 200, response.data
 
-    def test_shop_order_list(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['manager_user'])
+        # Update
+        response = api_client.put(
+            url,
+            {"quantity": 3},
+            format="json",
+        )
+        assert response.status_code == 200, response.data
 
-        order = Order.objects.create(customer=setup_data['customer'])
-        OrderItem.objects.create(order=order, product=setup_data['product'], quantity=2)
+        order_item.refresh_from_db()
+        assert order_item.quantity == 3
 
-        url = reverse('order:order_api_vi:shop_order_item')
-        response = client.get(url)
-        assert response.status_code == 200
+        # Delete
+        response = api_client.delete(url)
+        assert response.status_code == 204, getattr(
+            response,
+            "data",
+            None,
+        )
 
-    def test_order_item_api_view(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
+        assert not OrderItem.objects.filter(
+            pk=order_item.pk
+        ).exists()
 
-        order = Order.objects.create(customer=setup_data['customer'])
-        OrderItem.objects.create(order=order, product=setup_data['product'], quantity=2)
+    def test_shop_order_list(self, api_client, setup_data):
+        manager_user = setup_data["manager_user"]
+        customer = setup_data["customer"]
+        product = setup_data["product"]
+        store = setup_data["store"]
 
-        url = reverse('order:order_api_vi:customer_order_item')
-        response = client.get(url)
-        assert response.status_code == 200
+        order = Order.objects.create(
+            customer=customer,
+            status=False,
+        )
 
-    def test_bill_creation(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=2,
+        )
 
-        order = Order.objects.create(customer=setup_data['customer'])
+        api_client.force_authenticate(user=manager_user)
 
-        url = reverse('order:order_api_vi:bill-creation', args=[order.id])
-        response = client.post(url)
-        assert response.status_code == 201
+        url = "/order/api/v1/shop/order/items/"
+        response = api_client.get(url)
+
+        assert response.status_code == 200, response.data
+
+    def test_order_item_api_view(self, api_client, setup_data):
+        user = setup_data["user"]
+        customer = setup_data["customer"]
+        product = setup_data["product"]
+
+        order = Order.objects.create(
+            customer=customer,
+            status=False,
+        )
+
+        OrderItem.objects.create(
+            order=order,
+            product=product,
+            quantity=2,
+        )
+
+        api_client.force_authenticate(user=user)
+
+        url = "/order/api/v1/order/item/"
+        response = api_client.get(url)
+
+        assert response.status_code == 200, response.data
+
+    def test_bill_creation(self, api_client, setup_data):
+        user = setup_data["user"]
+        customer = setup_data["customer"]
+        product = setup_data["product"]
+        address = setup_data["address"]
+
+        CartService.clear_cart(customer_id=customer.id)
+
+        try:
+            # Bill creation reads products from the Redis cart.
+            CartService.add_item(
+                customer_id=customer.id,
+                product_id=product.id,
+                quantity=1,
+            )
+
+            api_client.force_authenticate(user=user)
+
+            # The URL parameter is the address ID, not the order ID.
+            url = f"/order/api/v1/bill/create/{address.id}/"
+
+            response = api_client.post(
+                url,
+                {},
+                format="json",
+            )
+
+            assert response.status_code == 200, response.data
+
+            bill = Bill.objects.get(
+                address=address,
+                cart__customer=customer,
+            )
+
+            assert bill.cart.customer_id == customer.id
+
+            assert OrderItem.objects.filter(
+                order=bill.cart,
+                product=product,
+                quantity=1,
+            ).exists()
+
+        finally:
+            CartService.clear_cart(customer_id=customer.id)
+

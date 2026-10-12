@@ -99,40 +99,6 @@ class TestOrderViews:
         response = client.get(url)
         assert response.status_code == 200
 
-    # -------------------- Order Item --------------------
-    def test_order_item_create_list_detail_update_delete(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
-
-        order = Order.objects.create(customer=setup_data['customer'])
-        product = setup_data['product']
-
-        # Create OrderItem
-        url_create = reverse('order:order_api_vi:order-item-create', args=[product.id])
-        response = client.post(url_create, {'order': order.id, 'quantity': 2})
-        assert response.status_code == 201
-        item = OrderItem.objects.get(order=order, product=product)
-
-        # List OrderItems
-        url_list = reverse('order:order_api_vi:customer_order_item')
-        response = client.get(url_list)
-        assert response.status_code == 200
-
-        # Detail
-        url_detail = reverse('order:order_api_vi:order_item_detail', args=[item.id])
-        response = client.get(url_detail)
-        assert response.status_code == 200
-
-        # Update
-        response = client.put(url_detail, {'order': order.id, 'product': product.id, 'quantity': 5})
-        assert response.status_code == 200
-        item.refresh_from_db()
-        assert item.quantity == 5
-
-        # Delete
-        response = client.delete(url_detail)
-        assert response.status_code == 204
-        assert not OrderItem.objects.filter(id=item.id).exists()
 
     # -------------------- Shop Order List --------------------
     def test_shop_order_list(self, setup_data):
@@ -146,14 +112,4 @@ class TestOrderViews:
         response = client.get(url)
         assert response.status_code == 200
 
-    # -------------------- Bill Creation --------------------
-    def test_bill_creation(self, setup_data):
-        client = APIClient()
-        client.force_authenticate(user=setup_data['user'])
-
-        order = Order.objects.create(customer=setup_data['customer'])
-
-        url = reverse('order:order_api_vi:bill-creation', args=[order.id])
-        response = client.post(url)
-        assert response.status_code == 201
-        assert Bill.objects.filter(order=order).exists()
+    

@@ -124,15 +124,20 @@ class OrderItemSerializer(serializers.ModelSerializer):
         rep['product'] = ProductSerializer(instance.product).data
         return rep
     
+    
     def validate_quantity(self, value):
         if value <= 0:
             raise serializers.ValidationError(
                 "Quantity must be greater than zero."
             )
 
-        product = Product.objects.filter(
-            pk=self.context.get("pk")
-        ).first()
+        if self.instance is not None:
+            product = self.instance.product
+        else:
+            product_id = self.context.get("pk")
+            product = Product.objects.filter(
+                pk=product_id
+            ).first()
 
         if not product:
             raise serializers.ValidationError(

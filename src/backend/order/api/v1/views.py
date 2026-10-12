@@ -240,52 +240,53 @@ class OrderItemDetailView(generics.GenericAPIView):
             "product",
             "order",
         )
+        
+    def get_object(self, pk):
+        obj = get_object_or_404(self.get_queryset(), pk=pk)
+        self.check_object_permissions(self.request, obj)
+        return obj
 
     
     def get(self, request, pk):
-        obj = obj = get_object_or_404(
-            self.get_queryset(),
-            pk=pk,
-        )
+        obj = self.get_object(pk)
         serializer = self.serializer_class(obj)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     def put(self, request, pk):
-        
-        obj =  get_object_or_404(
-            self.get_queryset(),
-            pk=pk,
+        obj = self.get_object(pk)
+        serializer = self.serializer_class(
+            instance=obj,
+            data=request.data,
+            context={"request": request},
         )
-        serializer = self.serializer_class(data=request.data, instance=obj)
-        if serializer.is_valid():
-            
-            serializer.save(total=obj.product.price * obj.quantity)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
+        serializer.is_valid(raise_exception=True)
+        updated_item = serializer.save()
+
+        return Response(
+            self.serializer_class(updated_item).data,
+            status=status.HTTP_200_OK,
+        )
 
     def patch(self, request, pk):
-        
-        obj =  get_object_or_404(
-            self.get_queryset(),
-            pk=pk,
+        obj = self.get_object(pk)
+        serializer = self.serializer_class(
+            instance=obj,
+            data=request.data,
+            partial=True,
+            context={"request": request},
         )
-        serializer = self.serializer_class(data=request.data, instance=obj, partial=True)
-        if serializer.is_valid():
-            
-            serializer.save(total=obj.product.price * obj.quantity)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response(serializer.errors, status=status.HTTP_404_NOT_FOUND)
+        serializer.is_valid(raise_exception=True)
+        updated_item = serializer.save()
+
+        return Response(
+            self.serializer_class(updated_item).data,
+            status=status.HTTP_200_OK,
+        )
 
     def delete(self, request, pk):
-        obj = get_object_or_404(
-            self.get_queryset(),
-            pk=pk,
-        ).delete()
-        return Response({'details': 'object deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
-
-
+        obj = self.get_object(pk)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 class ShopOrderListApiView(generics.GenericAPIView):
     """
     API view to list all OrderItems for products managed by the authenticated store manager.
