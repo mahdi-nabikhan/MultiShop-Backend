@@ -60,7 +60,7 @@ jobs:
         run: docker compose config --quiet
 
       - name: Build and start required services
-        run: docker compose up -d --build db redis backend
+        run: docker compose up -d --build db redis backend elasticsearch
 
       - name: Show running containers
         run: docker compose ps
