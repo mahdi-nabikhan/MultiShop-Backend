@@ -3,9 +3,9 @@ services:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
-      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-multishop}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -14,10 +14,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 200m
     networks:
       - backend_network
 
@@ -30,32 +26,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          memory: 100m
-    networks:
-      - backend_network
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.0
-    restart: unless-stopped
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms256m -Xmx256m"
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          memory: ${ELASTICSEARCH_MEMORY:-900m}
     networks:
       - backend_network
 
@@ -73,8 +43,6 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      ELASTICSEARCH_HOST: elasticsearch
-      ELASTICSEARCH_PORT: "9200"
       CELERY_TIMEZONE: Asia/Tehran
     command:
       - sh
@@ -93,22 +61,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - "import socket; s=socket.create_connection(('127.0.0.1', 8000), 3); s.close()"
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 300m
     networks:
       - backend_network
 
@@ -126,8 +78,6 @@ services:
       POSTGRES_PORT: "5432"
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      ELASTICSEARCH_HOST: elasticsearch
-      ELASTICSEARCH_PORT: "9200"
       CELERY_TIMEZONE: Asia/Tehran
     command: celery -A Multi_Shop worker --loglevel=info
     depends_on:
@@ -136,11 +86,7 @@ services:
       redis:
         condition: service_healthy
       backend:
-        condition: service_healthy
-    deploy:
-      resources:
-        limits:
-          memory: 256m
+        condition: service_started
     networks:
       - backend_network
 
@@ -155,16 +101,12 @@ services:
       - media_volume:/srv/media:ro
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
       timeout: 5s
       retries: 3
-    deploy:
-      resources:
-        limits:
-          memory: 64m
     networks:
       - backend_network
 
@@ -172,7 +114,6 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
-  elasticsearch_data:
 
 networks:
   backend_network:
