@@ -75,7 +75,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "auditlog",
 
-    "django_elasticsearch_dsl",
+    # "django_elasticsearch_dsl",
 ]
 
 
@@ -357,22 +357,22 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 # ELASTICSEARCH
 # =========================================================
 
-ELASTICSEARCH_HOST = os.getenv(
-    "ELASTICSEARCH_HOST",
-    "localhost",
-)
+# ELASTICSEARCH_HOST = os.getenv(
+#     "ELASTICSEARCH_HOST",
+#     "localhost",
+# )
 
-ELASTICSEARCH_PORT = os.getenv(
-    "ELASTICSEARCH_PORT",
-    "9200",
-)
+# ELASTICSEARCH_PORT = os.getenv(
+#     "ELASTICSEARCH_PORT",
+#     "9200",
+# )
 
 
-ELASTICSEARCH_DSL = {
-    "default": {
-        "hosts": f"http://{ELASTICSEARCH_HOST}:{ELASTICSEARCH_PORT}",
-    }
-}
+# ELASTICSEARCH_DSL = {
+#     "default": {
+#         "hosts": f"http://{ELASTICSEARCH_HOST}:{ELASTICSEARCH_PORT}",
+#     }
+# }
 
 
 # =========================================================
