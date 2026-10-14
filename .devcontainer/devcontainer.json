@@ -1,63 +1,22 @@
 {
-  "name": "Multi_Shop Django Stack",
-  "dockerComposeFile": "docker-compose.yml",
-  "service": "backend",
-  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "name": "Multi_Shop Django Dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}},
-  "shutdownAction": "stopCompose",
-  "postCreateCommand": "pip install -r requirements.txt",
-  "postAttachCommand": {
-    "migrate": "python manage.py migrate",
-    "server": "python manage.py runserver 0.0.0.0:8000"
+    "ghcr.io/devcontainers/features/postgres:1": {},
+    "ghcr.io/devcontainers/features/redis:1": {}
   },
-  "forwardPorts": [8000, 5432, 6379, 9200],
+  "postCreateCommand": "pip install -r requirements.txt",
+  "postAttachCommand": "python manage.py runserver 0.0.0.0:8000",
+  "forwardPorts": [8000],
   "portsAttributes": {
     "8000": {
-      "label": "Django Application",
+      "label": "Django App",
       "onAutoForward": "openPreview"
-    },
-    "5432": {
-      "label": "PostgreSQL",
-      "onAutoForward": "silent"
-    },
-    "6379": {
-      "label": "Redis",
-      "onAutoForward": "silent"
-    },
-    "9200": {
-      "label": "Elasticsearch",
-      "onAutoForward": "silent"
     }
   },
   "customizations": {
     "vscode": {
-      "extensions": [
-        "ms-python.python",
-        "ms-python.debugpy",
-        "ms-python.vscode-pylance",
-        "ms-azuretools.vscode-docker",
-        "batisteo.vscode-django",
-        "wholroyd.jinja"
-      ],
-      "settings": {
-        "python.defaultInterpreterPath": "/usr/local/bin/python",
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false,
-        "python.formatting.provider": "black",
-        "editor.formatOnSave": true,
-        "files.exclude": {
-          "**/__pycache__": true,
-          "**/*.pyc": true
-        }
-      }
+      "extensions": ["ms-python.python", "batisteo.vscode-django"]
     }
-  },
-  "remoteEnv": {
-    "PYTHONUNBUFFERED": "1",
-    "PYTHONDONTWRITEBYTECODE": "1"
-  },
-  "remoteUser": "root"
-  
+  }
 }
-
