@@ -3,6 +3,8 @@
   "dockerComposeFile": "docker-compose.yml",
   "service": "backend",
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}},
   "shutdownAction": "stopCompose",
   "postCreateCommand": "pip install -r requirements.txt",
   "postAttachCommand": {
@@ -56,4 +58,6 @@
     "PYTHONDONTWRITEBYTECODE": "1"
   },
   "remoteUser": "root"
+  
 }
+
