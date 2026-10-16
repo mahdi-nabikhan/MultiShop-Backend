@@ -17,7 +17,12 @@ RUN pip install --upgrade pip && \
     -r requirements.txt
 
 COPY ./src /app
+COPY ./docker/start.sh /app/start.sh
+
+RUN chmod +x /app/start.sh
 
 WORKDIR /app/backend
 
 EXPOSE 8000
+
+CMD ["/bin/sh", "/app/start.sh"]
