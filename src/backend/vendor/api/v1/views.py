@@ -12,6 +12,9 @@ from .permissions import *
 from account.throttels import StaffRegisterRateThrottle
 from ...index import StoreDocument
 from django.shortcuts import get_object_or_404
+from django.contrib.postgres.search import SearchQuery, SearchRank, SearchVector
+
+
 
 class ManagerRegisterAPIView(GenericAPIView):
     """
@@ -1184,60 +1187,121 @@ class OperatorDetailApiView(GenericAPIView):
     
 
 
+# class StoreSearchApi(GenericAPIView):
+
+#     def get(self, request):
+#         q = request.query_params.get('q')
+
+#         if not q:
+#             return Response(
+#                 {
+#                     'success': False,
+#                     'message': 'Search query is required.'
+#                 },
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         search = StoreDocument.search()
+
+#         search = search.query(
+#             'bool',
+#             should=[
+#                 {
+#                     'match': {
+#                         'name': {
+#                             'query': q,
+#                             'boost': 3
+#                         }
+#                     }
+#                 },
+#                 {
+#                     'match': {
+#                         'description': {
+#                             'query': q
+#                         }
+#                     }
+#                 }
+#             ],
+#             minimum_should_match=1
+#         )
+
+#         results = search.execute()
+
+#         data = [
+#             {
+#                 'id': hit.meta.id,
+#                 'score': hit.meta.score,
+#                 **hit.to_dict()
+#             }
+#             for hit in results
+#         ]
+
+#         return Response(
+#             {
+#                 'success': True,
+#                 'count': len(data),
+#                 'results': data
+#             },
+#             status=status.HTTP_200_OK
+#         )
+
+
+
+
 class StoreSearchApi(GenericAPIView):
 
     def get(self, request):
-        q = request.query_params.get('q')
+        q = request.query_params.get("q", "").strip()
 
         if not q:
             return Response(
                 {
-                    'success': False,
-                    'message': 'Search query is required.'
+                    "success": False,
+                    "message": "Search query is required.",
                 },
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        search = StoreDocument.search()
-
-        search = search.query(
-            'bool',
-            should=[
-                {
-                    'match': {
-                        'name': {
-                            'query': q,
-                            'boost': 3
-                        }
-                    }
-                },
-                {
-                    'match': {
-                        'description': {
-                            'query': q
-                        }
-                    }
-                }
-            ],
-            minimum_should_match=1
+        vector = (
+            SearchVector("name", weight="A", config="simple")
+            + SearchVector("description", weight="B", config="simple")
         )
 
-        results = search.execute()
+        query = SearchQuery(
+            q,
+            config="simple",
+            search_type="plain",
+        )
+
+        stores = (
+            Store.objects
+            .annotate(search_vector=vector)
+            .annotate(
+                score=SearchRank(
+                    vector,
+                    query,
+                    cover_density=True,
+                )
+            )
+            .filter(search_vector=query)
+            .order_by("-score")
+        )
 
         data = [
             {
-                'id': hit.meta.id,
-                'score': hit.meta.score,
-                **hit.to_dict()
+                "id": store.pk,
+                "score": store.score,
+                "name": store.name,
+                "description": store.description,
             }
-            for hit in results
+            for store in stores
         ]
 
         return Response(
             {
-                'success': True,
-                'count': len(data),
-                'results': data
+                "success": True,
+                "count": len(data),
+                "results": data,
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )

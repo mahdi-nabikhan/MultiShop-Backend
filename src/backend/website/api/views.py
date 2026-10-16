@@ -14,6 +14,12 @@ from rest_framework.permissions import AllowAny
 from elasticsearch import Elasticsearch
 from ..index import ProductDocument
 from django.shortcuts import get_object_or_404
+from django.contrib.postgres.search import (
+    SearchQuery,
+    SearchRank,
+    SearchVector,
+)
+
 
 class RandomProductsApiView(APIView):
     """
@@ -134,118 +140,128 @@ class ProductsFilteringAPIView(ListAPIView):
         return query_set
 
 
-class ProductSearchApi(GenericAPIView):
+# class ProductSearchApi(GenericAPIView):
     
+#     def get(self, request):
+#         q = request.query_params.get("q")
+
+#         if not q:
+#             return Response(
+#                 {
+#                     "success": False,
+#                     "message": "Search query is required."
+#                 },
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
+
+#         search = ProductDocument.search()
+
+#         search = search.query(
+#             "bool",
+#             should=[
+#                 {
+#                     "match": {
+#                         "name": {
+#                             "query": q,
+#                             "boost": 3
+#                         }
+#                     }
+#                 },
+#                 {
+#                     "match": {
+#                         "description": {
+#                             "query": q
+#                         }
+#                     }
+#                 }
+#             ],
+#             minimum_should_match=1
+#         )
+
+#         results = search.execute()
+
+#         data = [
+#             {
+#                 "id": hit.meta.id,
+#                 "score": hit.meta.score,
+#                 **hit.to_dict()
+#             }
+#             for hit in results
+#         ]
+
+#         return Response(
+#             {
+#                 "success": True,
+#                 "count": len(data),
+#                 "results": data
+#             },
+#             status=status.HTTP_200_OK
+#         )
+
+
+
+
+class ProductSearchApi(GenericAPIView):
+
     def get(self, request):
-        q = request.query_params.get("q")
+        q = request.query_params.get("q", "").strip()
 
         if not q:
             return Response(
                 {
                     "success": False,
-                    "message": "Search query is required."
+                    "message": "Search query is required.",
                 },
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        search = ProductDocument.search()
-
-        search = search.query(
-            "bool",
-            should=[
-                {
-                    "match": {
-                        "name": {
-                            "query": q,
-                            "boost": 3
-                        }
-                    }
-                },
-                {
-                    "match": {
-                        "description": {
-                            "query": q
-                        }
-                    }
-                }
-            ],
-            minimum_should_match=1
+        vector = (
+            SearchVector("name", weight="A", config="simple")
+            + SearchVector(
+                "description",
+                weight="B",
+                config="simple",
+            )
         )
 
-        results = search.execute()
+        query = SearchQuery(
+            q,
+            config="simple",
+            search_type="plain",
+        )
+
+        products = (
+            Product.objects
+            .annotate(search_vector=vector)
+            .annotate(
+                score=SearchRank(
+                    vector,
+                    query,
+                    cover_density=True,
+                )
+            )
+            .filter(search_vector=query)
+            .order_by("-score")
+        )
 
         data = [
             {
-                "id": hit.meta.id,
-                "score": hit.meta.score,
-                **hit.to_dict()
+                "id": product.pk,
+                "score": product.score,
+                "name": product.name,
+                "description": product.description,
             }
-            for hit in results
+            for product in products
         ]
 
         return Response(
             {
                 "success": True,
                 "count": len(data),
-                "results": data
+                "results": data,
             },
-            status=status.HTTP_200_OK
+            status=status.HTTP_200_OK,
         )
-
-# class AutoCompleteApi(APIView):
-#     """
-#     API view to provide autocomplete suggestions for product names.
-
-#     Responsibilities
-#     ----------------
-#     - GET: Return a list of unique product names that match a prefix query (match_phrase_prefix) on the 'name_auto' field.
-
-#     Attributes
-#     ----------
-#     (Uses global `es` client.)
-
-#     Methods
-#     -------
-#     get(self, request)
-#         - Reads query parameter 'q' (prefix string).
-#         - Constructs Elasticsearch match_phrase_prefix query on field 'name_auto'.
-#         - Executes the query on index 'products_index'.
-#         - Extracts unique product names from the hits (using a set to deduplicate).
-#         - Returns the list of suggestion strings as JSON response.
-
-#     Usage
-#     -----
-#         # Get autocomplete suggestions starting with 'lap'
-#         GET /api/v1/autocomplete/?q=lap -> ["laptop", "laptop bag", "lapel pin"]
-
-#         # Empty query
-#         GET /api/v1/autocomplete/?q= -> may return empty list or all names depending on ES.
-
-#     Notes
-#     -----
-#     - Requires an Elasticsearch index with a 'name_auto' field analyzed for prefix matching (e.g., using edge_ngram tokenizer).
-#     - Deduplicates names using set comprehension because multiple documents can have the same name.
-#     - No pagination; returns all matching unique names up to the limit set by Elasticsearch's default size (usually 10).
-#     - No authentication required.
-#     """
-
-#     def get(self, request):
-#         q = request.query_params.get("q", "")
-
-#         body = {
-#             "query": {
-#                 "match_phrase_prefix": {
-#                     "name_auto": q
-#                 }
-#             }
-#         }
-
-#         results = es.search(index="products_index", body=body)
-
-#         suggestions = list({hit["_source"]["name"]
-#                            for hit in results["hits"]["hits"]})
-
-#         return Response(suggestions)
 
 
 class ListStoreApiView(GenericAPIView):
