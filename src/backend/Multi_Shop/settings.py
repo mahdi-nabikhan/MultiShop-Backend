@@ -43,7 +43,16 @@ ALLOWED_HOSTS = [
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+from urllib.parse import quote
 
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
+
+if REDIS_PASSWORD:
+    REDIS_AUTH = f":{quote(REDIS_PASSWORD, safe='')}@"
+else:
+    REDIS_AUTH = ""
+
+REDIS_URL = f"redis://{REDIS_AUTH}{REDIS_HOST}:{REDIS_PORT}"
 
 # =========================================================
 # APPLICATION DEFINITION
