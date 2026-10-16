@@ -388,3 +388,12 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+
+
+# =========================================================
+# SWAGGER
+# =========================================================
+
+SWAGGER_SETTINGS = {
+    "DEFAULT_API_URL": "https://multishop.darkube.ir",
+}
