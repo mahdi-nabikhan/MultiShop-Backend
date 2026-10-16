@@ -133,11 +133,10 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(REDIS_HOST, REDIS_PORT)],
+            "hosts": [f"{REDIS_URL}/3"],
         },
     },
 }
-
 
 # =========================================================
 # DATABASE
@@ -304,10 +303,8 @@ EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 # =========================================================
 # CELERY
 # =========================================================
-
-CELERY_BROKER_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
-
-CELERY_RESULT_BACKEND = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
+CELERY_BROKER_URL = f"{REDIS_URL}/0"
+CELERY_RESULT_BACKEND = f"{REDIS_URL}/0"
 
 CELERY_ACCEPT_CONTENT = ["json"]
 
