@@ -124,7 +124,7 @@ class OrderItemListAPIView(generics.GenericAPIView):
     serializer_class = OrderItemSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, pk=None):
+    def get(self, request):
 
         customer = Customer.objects.get(
             user=request.user
@@ -498,3 +498,114 @@ class RelatedOrderItemWithOrder(generics.GenericAPIView):
         obj= self.get_queryset(pk)
         serializer = self.serializer_class(instance=obj,many=True,context = {'request':request})
         return Response(serializer.data,status=status.HTTP_200_OK)
+
+
+
+
+
+
+class CheckoutFromCartApiView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        customer = Customer.objects.get(user=request.user)
+
+        cart = CartService.get_cart(customer_id=customer.id)
+
+        if not cart:
+            return Response(
+                {"detail": "Your cart is empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        with transaction.atomic():
+            products = Product.objects.filter(
+                pk__in=cart.keys()
+            ).in_bulk()
+
+            missing_ids = set(cart.keys()) - set(products.keys())
+
+            if missing_ids:
+                return Response(
+                    {
+                        "detail": "Some products in the cart no longer exist.",
+                        "product_ids": sorted(missing_ids),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Lock the customer's existing incomplete orders.
+            orders = (
+                Order.objects.select_for_update()
+                .filter(
+                    customer=customer,
+                    status=False,
+                )
+                .order_by("-created")
+            )
+
+            order = orders.first()
+
+            # Check the related bill separately to avoid an outer join
+            # in the SELECT FOR UPDATE query.
+            if order is not None:
+                bill = getattr(order, "bill_cart", None)
+
+                if bill is not None and bill.status:
+                    order = None
+
+            created = order is None
+
+            if created:
+                order = Order.objects.create(
+                    customer=customer,
+                    status=False,
+                )
+
+            for product_id, quantity in cart.items():
+                if quantity <= 0:
+                    continue
+
+                item = (
+                    OrderItem.objects.select_for_update()
+                    .filter(
+                        order=order,
+                        product_id=product_id,
+                    )
+                    .first()
+                )
+
+                if item:
+                    item.quantity += quantity
+                    item.save()
+                else:
+                    OrderItem.objects.create(
+                        order=order,
+                        product=products[product_id],
+                        quantity=quantity,
+                    )
+
+            order_id = order.id
+
+        # Clear Redis only after the database transaction succeeds.
+        CartService.clear_cart(customer_id=customer.id)
+
+        return Response(
+            {
+                "detail": "Checkout completed successfully.",
+                "order_id": order_id,
+                "created": created,
+                "items": [
+                    {
+                        "product_id": product_id,
+                        "quantity": quantity,
+                    }
+                    for product_id, quantity in cart.items()
+                ],
+            },
+            status=(
+                status.HTTP_201_CREATED
+                if created
+                else status.HTTP_200_OK
+            ),
+        )

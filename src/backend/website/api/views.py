@@ -292,8 +292,9 @@ class ListStoreApiView(GenericAPIView):
     serializer_class = StoreSerializer
     pagination_class = WebsiteShopPaginations
     permission_classes =[AllowAny]
+    queryset = Store.objects.all()
     def get(self, request):
-        data = Store.objects.all()
+        data =  data = self.get_queryset()
         page = self.paginate_queryset(data)
 
 

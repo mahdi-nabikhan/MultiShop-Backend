@@ -226,7 +226,7 @@ class BillSerilizers(serializers.ModelSerializer):
 
             order = Order.objects.create(
                 customer=self.customer,
-                status=False,
+                status=True,
             )
 
             for product_id, quantity in self.cart.items():

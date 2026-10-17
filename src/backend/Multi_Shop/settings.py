@@ -394,6 +394,9 @@ SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
 # SWAGGER
 # =========================================================
 
+# SWAGGER_SETTINGS = {
+#     "DEFAULT_API_URL": "https://multishop.darkube.ir",
+# }
 SWAGGER_SETTINGS = {
-    "DEFAULT_API_URL": "https://multishop.darkube.ir",
+    "DEFAULT_API_URL": "http://localhost:8000",
 }
